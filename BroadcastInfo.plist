@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plist version="1.0"><dict>
+<key>CFBundleExecutable</key><string>$(EXECUTABLE_NAME)</string>
+<key>CFBundleIdentifier</key><string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+<key>CFBundleName</key><string>长安投屏</string>
+<key>CFBundlePackageType</key><string>XPC!</string>
+<key>CFBundleVersion</key><string>$(CURRENT_PROJECT_VERSION)</string>
+<key>CFBundleShortVersionString</key><string>$(MARKETING_VERSION)</string>
+<key>NSLocalNetworkUsageDescription</key><string>将屏幕画面发送到同一网络的车机浏览器。</string>
+<key>NSExtension</key><dict>
+<key>NSExtensionPointIdentifier</key><string>com.apple.broadcast-services-upload</string>
+<key>NSExtensionPrincipalClass</key><string>$(PRODUCT_MODULE_NAME).SampleHandler</string>
+<key>NSExtensionAttributes</key><dict><key>RPBroadcastProcessMode</key><string>RPBroadcastProcessModeSampleBuffer</string></dict>
+</dict></dict></plist>

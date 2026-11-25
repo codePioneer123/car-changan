@@ -6,6 +6,13 @@ import Combine
 final class VehicleLink: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeripheralDelegate {
     @Published private(set) var devices: [CBPeripheral] = []
     @Published private(set) var status = "请先打开车机上的 ICCOA Carlink"
+    @Published private(set) var hotspot: HotspotReply?
+    @Published private(set) var history: [String] = []
+    private func report(_ message: String) {
+        status = message
+        history.append(message)
+        if history.count > 30 { history.removeFirst() }
+    }
     @Published private(set) var busy = false
     @Published private(set) var selectable = false
     private lazy var central = CBCentralManager(delegate: self, queue: .main)
@@ -35,10 +42,12 @@ final class VehicleLink: NSObject, ObservableObject, CBCentralManagerDelegate, C
         packet.removeAll()
         busy = false
         selectable = false
-        status = message
+        hotspot = nil
+        report(message)
     }
 
     func scan() {
+        history.removeAll()
         finish("正在检查蓝牙")
         devices.removeAll()
         waitingForRadio = true
@@ -52,15 +61,17 @@ final class VehicleLink: NSObject, ObservableObject, CBCentralManagerDelegate, C
             guard waitingForRadio else { return }
             waitingForRadio = false
             selectable = true
-            status = "正在查找车机"
+            report("正在查找车机")
             central.scanForPeripherals(withServices: [CBUUID(string: "FCFB")])
             timer = Timer.scheduledTimer(withTimeInterval: 20, repeats: false) { [weak self] _ in
                 guard let self else { return }
                 self.central.stopScan()
                 self.busy = false
-                self.status = self.devices.isEmpty ? "未发现 Carlink 广播，请检查车机互联页面" : "请选择车机"
+                self.report(self.devices.isEmpty ? "未发现 Carlink 广播，请检查车机互联页面" : "请选择车机")
             }
         case .unknown, .resetting: break
+        case .unauthorized: finish("请在系统设置中允许此 App 使用蓝牙")
+        case .poweredOff: finish("请开启蓝牙，然后重新查找")
         default: finish("蓝牙不可用，请检查系统蓝牙及 App 权限")
         }
     }
@@ -79,7 +90,8 @@ final class VehicleLink: NSObject, ObservableObject, CBCentralManagerDelegate, C
         device.delegate = self
         central.connect(device)
         timer = Timer.scheduledTimer(withTimeInterval: 35, repeats: false) { [weak self] _ in
-            self?.finish("连接超时，请重新查找车机")
+            guard let self else { return }
+            self.finish(self.status + "：等待超时，请重新查找车机")
         }
     }
 
@@ -92,7 +104,9 @@ final class VehicleLink: NSObject, ObservableObject, CBCentralManagerDelegate, C
     }
 
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
-        if peripheral === peer { peripheral.discoverServices([service]) }
+        guard peripheral === peer else { return }
+        report("已连接蓝牙，正在查找 Carlink 服务")
+        peripheral.discoverServices([service])
     }
 
     func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
@@ -113,6 +127,7 @@ final class VehicleLink: NSObject, ObservableObject, CBCentralManagerDelegate, C
             finish("车机未提供可用的互联通道")
             return
         }
+        report("已发现互联通道，正在订阅车机回复")
         writer = out
         peripheral.setNotifyValue(true, for: input)
     }
@@ -130,7 +145,7 @@ final class VehicleLink: NSObject, ObservableObject, CBCentralManagerDelegate, C
             finish("车机无法接收连接请求")
             return
         }
-        status = "等待车机提供热点"
+        report("等待车机提供热点")
         peripheral.writeValue(data, for: writer, type: .withResponse)
     }
 
@@ -138,13 +153,13 @@ final class VehicleLink: NSObject, ObservableObject, CBCentralManagerDelegate, C
         if peripheral === peer && error != nil && !joining { finish("车机拒绝连接请求") }
     }
 
-    private struct Reply: Decodable { let ssid: String; let psk: String; let type: Int }
+    struct HotspotReply: Decodable { let ssid: String; let psk: String; let type: Int }
     func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
         guard peripheral === peer, characteristic.uuid == rx, !joining else { return }
         guard error == nil, let fragment = characteristic.value, !fragment.isEmpty,
               packet.count + fragment.count <= 4096 else { finish("车机回复异常"); return }
         packet.append(fragment)
-        guard let reply = try? JSONDecoder().decode(Reply.self, from: packet) else { return }
+        guard let reply = try? JSONDecoder().decode(HotspotReply.self, from: packet) else { return }
         guard reply.type == 1002 else { finish("车机要求另一种 Wi-Fi 连接模式"); return }
         guard (1...32).contains(reply.ssid.utf8.count), (8...63).contains(reply.psk.utf8.count) else {
             finish("车机热点参数不受支持")
@@ -153,20 +168,25 @@ final class VehicleLink: NSObject, ObservableObject, CBCentralManagerDelegate, C
         joining = true
         packet.removeAll()
         timer?.invalidate()
+        hotspot = reply
+        #if MANUAL_HOTSPOT
+        report("已收到热点信息，请在 iPhone 的设置 → 无线局域网中加入")
+        #else
         let attempt = generation
         let config = NEHotspotConfiguration(ssid: reply.ssid, passphrase: reply.psk, isWEP: false)
         config.joinOnce = true
-        status = "请确认系统的 Wi-Fi 加入提示"
+        report("请确认系统的 Wi-Fi 加入提示")
         NEHotspotConfigurationManager.shared.apply(config) { [weak self] error in
             DispatchQueue.main.async {
                 guard let self, self.generation == attempt else { return }
                 if let e = error as NSError?, !(e.domain == NEHotspotConfigurationErrorDomain &&
                     e.code == NEHotspotConfigurationError.alreadyAssociated.rawValue) {
-                    self.finish("加入车机热点失败（系统错误码 " + String(e.code) + "）")
+                    self.report("自动加入失败（系统错误码 " + String(e.code) + "），可手动加入")
                 } else {
                     self.finish("系统已接受热点配置，投屏会话尚未建立")
                 }
             }
         }
+        #endif
     }
 }

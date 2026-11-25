@@ -1,12 +1,19 @@
 name: ChanganLink
 options:
   bundleIdPrefix: dev.codepioneer123
+configs:
+  Debug: debug
+  Release: release
+  Personal: release
 targets:
   ChanganLink:
     type: application
     platform: iOS
     deploymentTarget: "17.0"
     sources: [App]
+    dependencies:
+      - target: ScreenBroadcast
+        embed: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: dev.codepioneer123.ChanganLink
@@ -15,6 +22,24 @@ targets:
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
         CODE_SIGN_ENTITLEMENTS: ChanganLink.entitlements
-        MARKETING_VERSION: "0.1"
-        CURRENT_PROJECT_VERSION: 1
+        INFOPLIST_KEY_NSLocalNetworkUsageDescription: 允许同一网络中的车机浏览器显示手机屏幕。
+        MARKETING_VERSION: "0.2"
+        CURRENT_PROJECT_VERSION: 2
+        SWIFT_VERSION: "5.0"
+      configs:
+        Personal:
+          SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) MANUAL_HOTSPOT"
+          CODE_SIGN_ENTITLEMENTS: ""
+  ScreenBroadcast:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources: [Broadcast]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.codepioneer123.ChanganLink.Broadcast
+        INFOPLIST_FILE: BroadcastInfo.plist
+        SKIP_INSTALL: YES
+        MARKETING_VERSION: "0.2"
+        CURRENT_PROJECT_VERSION: 2
         SWIFT_VERSION: "5.0"
