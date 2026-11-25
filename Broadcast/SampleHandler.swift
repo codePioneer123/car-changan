@@ -14,7 +14,7 @@ final class SampleHandler: RPBroadcastSampleHandler {
             server.nativeControl = { action, parameters in
                 switch action {
                 case "pin": return String(cl_pin(parameters ?? ""))
-                case "state": return String(cl_state())
+                case "state": return "\(cl_state()),\(cl_frames())"
                 case "stop": cl_stop(); return "0"
                 case "start":
                     let fields = (parameters ?? "").split(separator: ",", omittingEmptySubsequences: false).map(String.init)

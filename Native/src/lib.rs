@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 use oxp_clink::{model::*, protocol::AuthIdentity, session::SessionOptions, *};
-use std::{ffi::{c_char, CStr}, net::Ipv4Addr, sync::{Arc, Condvar, Mutex, atomic::{AtomicI32, Ordering}}, time::Duration};
+use std::{ffi::{c_char, CStr}, net::Ipv4Addr, sync::{Arc, Condvar, Mutex, atomic::{AtomicI32, AtomicU64, Ordering}}, time::Duration};
 
 #[derive(Default)]
 struct Client {
     pin: Mutex<(Option<String>, bool)>,
     wake: Condvar,
+    frames: AtomicU64,
     state: AtomicI32,
     identity: Mutex<Option<AuthIdentity>>,
     peer_key: Mutex<Option<Vec<u8>>>,
@@ -34,6 +35,9 @@ impl ClinkListener for Client {
         let code = match s { ClinkState::Connecting=>1, ClinkState::Authenticating=>2,
             ClinkState::Negotiating=>3, ClinkState::Playing=>4, ClinkState::Ended=>5 };
         if self.state.load(Ordering::Acquire) >= 0 { self.state.store(code, Ordering::Release); }
+    }
+    fn statistics(&self, value: ClinkStatistics) {
+        self.frames.fetch_max(value.live_frames, Ordering::Relaxed);
     }
     fn error(&self, error: &str) {
         let code = if error.contains("pin") { -2 } else if error.contains("certificate") { -3 } else { -1 };
@@ -92,6 +96,10 @@ pub unsafe extern "C" fn cl_pin(value: *const c_char) -> i32 {
 #[no_mangle]
 pub extern "C" fn cl_state() -> i32 {
     ACTIVE.lock().unwrap().as_ref().map_or(0, |s| s.client.state.load(Ordering::Acquire))
+}
+#[no_mangle]
+pub extern "C" fn cl_frames() -> u64 {
+    ACTIVE.lock().unwrap().as_ref().map_or(0, |s| s.client.frames.load(Ordering::Relaxed))
 }
 #[no_mangle]
 pub extern "C" fn cl_stop() {

@@ -16,6 +16,11 @@ jobs:
       - name: Check Carlink authentication and media protocols
         if: matrix.configuration == 'Personal'
         run: cargo test --manifest-path vendor/stream/rust/Cargo.toml -p oxp-clink --test auth --test codecs
+      - name: Exercise ReplayKit video encoder with a generated frame
+        if: matrix.configuration == 'Personal'
+        run: |
+          swiftc Broadcast/CarlinkVideo.swift Tests/Encoder/main.swift -o "$RUNNER_TEMP/encoder-test"
+          "$RUNNER_TEMP/encoder-test"
       - name: Generate Xcode project
         run: |
           command -v xcodegen || brew install xcodegen

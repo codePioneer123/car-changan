@@ -44,6 +44,7 @@ private final class CommandRequest {
 struct NativeLinkView: View {
     let port: UInt16
     @State private var peer = ""
+    @State private var frames: UInt64 = 0
     @State private var pin = ""
     @State private var state: Int?
     @State private var feedback = ""
@@ -55,7 +56,7 @@ struct NativeLinkView: View {
         case 1: return "正在连接车机认证端口"
         case 2: return "正在验证配对"
         case 3: return "正在协商画面"
-        case 4: return "Carlink 已进入播放阶段"
+        case 4: return frames == 0 ? "车机已进入播放阶段，等待首帧" : "已发送 \(frames) 帧手机画面"
         case 5: return "车机会话已结束"
         case 6: return "请输入车机显示的六位配对码"
         case -2: return "配对码无效或等待已超时"
@@ -69,7 +70,10 @@ struct NativeLinkView: View {
         let value: String? = await withCheckedContinuation { result in
             CommandRequest().send("state", parameters: "") { result.resume(returning: $0) }
         }
-        if !Task.isCancelled { state = value.flatMap(Int.init) }
+        guard !Task.isCancelled else { return }
+        let fields = value?.split(separator: ",") ?? []
+        state = fields.first.flatMap { Int($0) }
+        frames = fields.count == 2 ? UInt64(fields[1]) ?? 0 : 0
     }
 
     private func action(_ command: String, parameters: String = "") {
