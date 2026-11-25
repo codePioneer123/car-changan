@@ -23,8 +23,8 @@ targets:
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
         CODE_SIGN_ENTITLEMENTS: ChanganLink.entitlements
         INFOPLIST_KEY_NSLocalNetworkUsageDescription: 允许同一网络中的车机浏览器显示手机屏幕。
-        MARKETING_VERSION: "0.2"
-        CURRENT_PROJECT_VERSION: 2
+        MARKETING_VERSION: "0.3"
+        CURRENT_PROJECT_VERSION: 3
         SWIFT_VERSION: "5.0"
       configs:
         Personal:
@@ -38,8 +38,11 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: dev.codepioneer123.ChanganLink.Broadcast
+        SWIFT_OBJC_BRIDGING_HEADER: Native/Changan.h
+        LIBRARY_SEARCH_PATHS: "$(inherited) $(SRCROOT)/Native/lib/$(PLATFORM_NAME)"
+        OTHER_LDFLAGS: "$(inherited) -lchangan_clink -framework Security -framework SystemConfiguration"
         INFOPLIST_FILE: BroadcastInfo.plist
         SKIP_INSTALL: YES
-        MARKETING_VERSION: "0.2"
-        CURRENT_PROJECT_VERSION: 2
+        MARKETING_VERSION: "0.3"
+        CURRENT_PROJECT_VERSION: 3
         SWIFT_VERSION: "5.0"

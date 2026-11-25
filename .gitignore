@@ -1,0 +1,4 @@
+vendor/
+Native/target/
+Native/lib/
+Native/Cargo.lock

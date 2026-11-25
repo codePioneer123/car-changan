@@ -8,9 +8,11 @@ jobs:
       matrix:
         configuration: [Personal, Release]
     runs-on: macos-15
-    timeout-minutes: 15
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
+      - name: Compile Carlink protocol for iOS
+        run: bash Native/build.sh
       - name: Generate Xcode project
         run: |
           command -v xcodegen || brew install xcodegen
