@@ -9,6 +9,9 @@ struct ChanganLink: App {
         WindowGroup {
             NavigationStack {
                 List {
+                    Section("ICCOA Carlink") {
+                        NavigationLink("通过车机 Carlink 投屏") { NativeLinkView(port: link.authPort) }
+                    }
                     Section("浏览器投屏") {
                         NavigationLink("把 iPhone 屏幕投到车机") { MirrorView() }
                     }

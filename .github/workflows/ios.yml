@@ -13,6 +13,9 @@ jobs:
       - uses: actions/checkout@v4
       - name: Compile Carlink protocol for iOS
         run: bash Native/build.sh
+      - name: Check Carlink authentication and media protocols
+        if: matrix.configuration == 'Personal'
+        run: cargo test --manifest-path vendor/stream/rust/Cargo.toml -p oxp-clink --test auth --test codecs
       - name: Generate Xcode project
         run: |
           command -v xcodegen || brew install xcodegen

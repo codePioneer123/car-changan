@@ -3,7 +3,7 @@ import ReplayKit
 import Network
 import Darwin
 
-private struct BroadcastButton: UIViewRepresentable {
+struct BroadcastButton: UIViewRepresentable {
     func makeUIView(context: Context) -> RPSystemBroadcastPickerView {
         let picker = RPSystemBroadcastPickerView(frame: CGRect(x: 0, y: 0, width: 52, height: 52))
         picker.showsMicrophoneButton = false
@@ -17,7 +17,7 @@ private struct BroadcastButton: UIViewRepresentable {
     func updateUIView(_ view: RPSystemBroadcastPickerView, context: Context) {}
 }
 
-private func wifiIPv4() -> String? {
+func wifiIPv4() -> String? {
     var list: UnsafeMutablePointer<ifaddrs>?
     guard getifaddrs(&list) == 0, let first = list else { return nil }
     defer { freeifaddrs(first) }

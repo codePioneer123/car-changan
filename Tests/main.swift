@@ -40,3 +40,22 @@ precondition(frame.0 == 200 && frame.1 == bytes)
 server.publish(nil)
 precondition(get(token + "/frame").0 == 503)
 print("Receiver pairing, frame delivery and pause verified.")
+
+server.nativeControl = { command, _ in command == "state" ? "6" : "-1" }
+func nativeStatus(_ local: Bool) -> Int {
+    var request = URLRequest(url: base.appendingPathComponent("native/state"))
+    request.httpMethod = "POST"
+    if local { request.setValue("session", forHTTPHeaderField: "X-Changan-Local") }
+    let done = DispatchSemaphore(value: 0)
+    final class Reply: @unchecked Sendable { var code = 0 }
+    let reply = Reply()
+    URLSession.shared.dataTask(with: request) { data, response, _ in
+        reply.code = (response as? HTTPURLResponse)?.statusCode ?? 0
+        if local { precondition(String(decoding: data ?? Data(), as: UTF8.self) == "6") }
+        done.signal()
+    }.resume()
+    precondition(done.wait(timeout: .now() + 4) == .success)
+    return reply.code
+}
+precondition(nativeStatus(true) == 200)
+precondition(nativeStatus(false) != 200)

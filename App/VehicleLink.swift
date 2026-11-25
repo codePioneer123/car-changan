@@ -153,7 +153,8 @@ final class VehicleLink: NSObject, ObservableObject, CBCentralManagerDelegate, C
         if peripheral === peer && error != nil && !joining { finish("车机拒绝连接请求") }
     }
 
-    struct HotspotReply: Decodable { let ssid: String; let psk: String; let type: Int }
+    @Published private(set) var authPort: UInt16 = 57209
+    struct HotspotReply: Decodable { let ssid: String; let psk: String; let type: Int; let port: UInt16? }
     func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
         guard peripheral === peer, characteristic.uuid == rx, !joining else { return }
         guard error == nil, let fragment = characteristic.value, !fragment.isEmpty,
@@ -168,6 +169,7 @@ final class VehicleLink: NSObject, ObservableObject, CBCentralManagerDelegate, C
         joining = true
         packet.removeAll()
         timer?.invalidate()
+        authPort = reply.port.flatMap { $0 == 0 ? nil : $0 } ?? 57209
         hotspot = reply
         #if MANUAL_HOTSPOT
         report("已收到热点信息，请在 iPhone 的设置 → 无线局域网中加入")

@@ -8,6 +8,7 @@ final class MirrorServer {
     private var clients: [UUID: NWConnection] = [:]
     private var frame: Data?
     private var key = ""
+    var nativeControl: ((String, String?) -> String)?
     let port: UInt16
 
     init(port: UInt16 = 48751) { self.port = port }
@@ -75,12 +76,20 @@ final class MirrorServer {
     private func respond(_ id: UUID, header: String) {
         guard let connection = clients[id] else { return }
         let line = header.components(separatedBy: "\r\n")[0].split(separator: " ")
-        guard line.count == 3, line[0] == "GET" else { close(id); return }
+        guard line.count == 3, (line[0] == "GET" || line[0] == "POST") else { close(id); return }
         let path = String(line[1])
         var body = Data()
         var type = "text/plain"
         var status = "404 Not Found"
-        if path == "/local-session",
+        if path.hasPrefix("/native/"), line[0] == "POST",
+           case let .hostPort(host, _) = connection.endpoint, Self.isLoopback(host),
+           header.components(separatedBy: "\r\n").contains("X-Changan-Local: session"), let nativeControl {
+            let prefix = "X-Changan-Parameters: "
+            let parameters = header.components(separatedBy: "\r\n").first(where: { $0.hasPrefix(prefix) }).map { String($0.dropFirst(prefix.count)) }
+            body = Data(nativeControl(String(path.dropFirst(8)), parameters).utf8)
+            status = "200 OK"
+        } else if line[0] != "GET" { status = "405 Method Not Allowed" }
+        else if path == "/local-session",
            case let .hostPort(host, _) = connection.endpoint,
            Self.isLoopback(host),
            header.components(separatedBy: "\r\n").dropFirst().contains(where: {

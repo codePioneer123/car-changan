@@ -1,16 +1,26 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 use oxp_clink::{model::*, protocol::AuthIdentity, session::SessionOptions, *};
-use std::{ffi::{c_char, CStr}, net::Ipv4Addr, sync::{Arc, Mutex, atomic::{AtomicI32, Ordering}}, time::Duration};
+use std::{ffi::{c_char, CStr}, net::Ipv4Addr, sync::{Arc, Condvar, Mutex, atomic::{AtomicI32, Ordering}}, time::Duration};
 
 #[derive(Default)]
 struct Client {
-    pin: Mutex<Option<String>>,
+    pin: Mutex<(Option<String>, bool)>,
+    wake: Condvar,
     state: AtomicI32,
     identity: Mutex<Option<AuthIdentity>>,
     peer_key: Mutex<Option<Vec<u8>>>,
 }
 impl PinProvider for Client {
-    fn request_pin(&self, _: &str) -> Option<String> { self.pin.lock().ok()?.take() }
+    fn request_pin(&self, _: &str) -> Option<String> {
+        self.state.store(6, Ordering::Release);
+        let guard = self.pin.lock().ok()?;
+        let (mut slot, _) = self.wake.wait_timeout_while(guard, Duration::from_secs(75),
+            |p| p.0.is_none() && !p.1).ok()?;
+        if slot.1 { return None }
+        self.state.store(2, Ordering::Release);
+        slot.0.take()
+    }
+    fn cancel(&self) { self.pin.lock().unwrap().1 = true; self.wake.notify_all(); }
 }
 impl TrustStore for Client {
     fn load_identity(&self) -> Result<Option<AuthIdentity>> { Ok(self.identity.lock().unwrap().clone()) }
@@ -47,11 +57,12 @@ pub unsafe extern "C" fn cl_start(local: *const c_char, peer: *const c_char, por
     let Some((local, peer)) = string(local).and_then(|s| s.parse::<Ipv4Addr>().ok())
         .zip(string(peer).and_then(|s| s.parse::<Ipv4Addr>().ok())) else { return -1 };
     let Some(pin) = string(pin) else { return -1 };
-    if pin.len()!=6 || !pin.bytes().all(|b|b.is_ascii_digit()) || local==peer || peer.is_loopback() || peer.is_multicast() || peer.is_unspecified() || peer.is_broadcast() { return -1 }
+    if (!pin.is_empty() && (pin.len()!=6 || !pin.bytes().all(|b|b.is_ascii_digit()))) || local==peer || peer.is_loopback() || peer.is_multicast() || peer.is_unspecified() || peer.is_broadcast() { return -1 }
     let mut active = ACTIVE.lock().unwrap();
     if active.is_some() { return -4 }
     let client = Arc::new(Client::default());
-    *client.pin.lock().unwrap() = Some(pin);
+    if !pin.is_empty() { client.pin.lock().unwrap().0 = Some(pin); }
+    client.state.store(1, Ordering::Release);
     let mut addresses = ClinkAddresses::new(peer, local);
     if port > 0 { addresses.auth_port = port; }
     let mut options = SessionOptions::default();
@@ -65,6 +76,17 @@ pub unsafe extern "C" fn cl_start(local: *const c_char, peer: *const c_char, por
     if output.open(client.clone()).is_err() { return -1 }
     output.on_session(&SessionState { id:1, phase:SessionPhase::Active, reason:None });
     *active = Some(Active {output, client});
+    0
+}
+#[no_mangle]
+pub unsafe extern "C" fn cl_pin(value: *const c_char) -> i32 {
+    let Some(pin) = string(value) else { return -1 };
+    if pin.len()!=6 || !pin.bytes().all(|b|b.is_ascii_digit()) { return -1 }
+    let slot = ACTIVE.lock().unwrap();
+    let Some(active) = slot.as_ref() else { return -1 };
+    if active.client.state.load(Ordering::Acquire)!=6 { return -1 }
+    active.client.pin.lock().unwrap().0 = Some(pin);
+    active.client.wake.notify_one();
     0
 }
 #[no_mangle]
