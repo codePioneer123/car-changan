@@ -1,0 +1,20 @@
+name: ChanganLink
+options:
+  bundleIdPrefix: dev.codepioneer123
+targets:
+  ChanganLink:
+    type: application
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources: [App]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.codepioneer123.ChanganLink
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription: 用于发现和连接您选择的 Carlink 车机。
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        CODE_SIGN_ENTITLEMENTS: ChanganLink.entitlements
+        MARKETING_VERSION: "0.1"
+        CURRENT_PROJECT_VERSION: 1
+        SWIFT_VERSION: "5.0"
